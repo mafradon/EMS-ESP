@@ -46,9 +46,9 @@ void ICACHE_RAM_ATTR EMSuart::emsuart_rx_intr_handler(void * para) {
 
     if (USIS(EMSUART_UART) & ((1 << UIBD))) { // BREAK detection = End of EMS data block
         USC0(EMSUART_UART) &= ~(1 << UCBRK);  // reset tx-brk
-        if (emsTxBufIdx < emsTxBufLen) {      // irq tx_mode is interrupted by <brk>
-            emsTxBufIdx  = emsTxBufLen + 1;   // stop tx
-            // drop_next_rx = true;              // we have trash in buffer
+        if (emsTxBufLen > 0) {                // timer tx_mode is interrupted by <brk>
+            emsTxBufLen  = 0;
+            drop_next_rx = true;
         }
         USIC(EMSUART_UART) = (1 << UIBD);   // INT clear the BREAK detect interrupt
         length = 0;
@@ -89,6 +89,9 @@ void ICACHE_FLASH_ATTR EMSuart::emsuart_recvTask(os_event_t * events) {
 
 // ISR to Fire when Timer is triggered
 void ICACHE_RAM_ATTR EMSuart::emsuart_tx_timer_intr_handler() {
+    if (emsTxBufLen == 0) {
+        return;
+    }
     emsTxBufIdx++;
     if (emsTxBufIdx < emsTxBufLen) {
         USF(EMSUART_UART) = emsTxBuf[emsTxBufIdx];
@@ -99,6 +102,7 @@ void ICACHE_RAM_ATTR EMSuart::emsuart_tx_timer_intr_handler() {
     } else {
         USC0(EMSUART_UART) &= ~(1 << UCBRK); // reset <BRK>
         sending_           = false;
+        emsTxBufLen        = 0;
     }
 }
 
